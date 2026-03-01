@@ -1,0 +1,30 @@
+# Go
+surveillance-client
+*.exe
+bin/
+go2rtc
+go2rtc.yaml
+data/
+
+# Frontend
+web/node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# DVR reference JS (reverse-engineering artifacts)
+dvr-js/
+
+# Env
+.env
+.env.local
