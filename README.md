@@ -1,6 +1,6 @@
 # surveillance-client
 
-A modern, self-hosted web client for Viewtron DVR systems. Single binary, real playback speed control, clip export — everything the manufacturer's software should have been.
+A modern, self-hosted web client for DVR systems. Single binary, real playback speed control, clip export — everything the manufacturer's software should have been.
 
 <!-- TODO: Add a hero GIF here showing the UI in action.
   Record a ~30s screen capture demonstrating:
