@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useCameraStore } from "../stores/cameraStore";
 import CameraSidebar from "../components/CameraSidebar";
-import VideoPlayer from "../components/VideoPlayer";
+import VideoPlayer, { type VideoPlayerHandle } from "../components/VideoPlayer";
 import QuadView from "../components/QuadView";
 import PlaybackControls from "../components/PlaybackControls";
 import DvrPlayer, { type DvrPlayerHandle } from "../components/DvrPlayer";
@@ -30,6 +30,7 @@ export default function LiveView() {
   } = useCameraStore();
 
   const dvrPlayerRef = useRef<DvrPlayerHandle | null>(null);
+  const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
 
   useEffect(() => {
@@ -130,6 +131,7 @@ export default function LiveView() {
           ) : viewMode === "single" && selectedCamera ? (
             <VideoPlayer
               key={selectedCamera}
+              ref={videoPlayerRef}
               cameraId={selectedCamera}
               className="absolute inset-0"
             />
@@ -150,8 +152,22 @@ export default function LiveView() {
             currentTime={currentTime}
           />
         ) : !isPlayback && viewMode === "single" && activeCam ? (
-          <div className="px-4 py-2 bg-gray-900 border-t border-gray-800 text-sm text-gray-300">
-            {activeCam.name}
+          <div className="px-4 py-2 bg-gray-900 border-t border-gray-800 flex items-center gap-3 text-sm">
+            <span className="text-gray-300 font-medium truncate">
+              {activeCam.name}
+            </span>
+            <div className="w-px h-5 bg-gray-700" />
+            <button
+              onClick={() =>
+                videoPlayerRef.current?.captureFrame(
+                  `${activeCam.name}_${Date.now()}.jpg`,
+                )
+              }
+              className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium transition-colors shrink-0"
+              title="Capture current frame as JPEG"
+            >
+              Capture
+            </button>
           </div>
         ) : null}
       </div>

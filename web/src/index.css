@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* Hide default HTML5 video controls on live stream players */
+video-rtc > video::-webkit-media-controls {
+  display: none !important;
+}
+video-rtc > video::-moz-range-track {
+  display: none !important;
+}
