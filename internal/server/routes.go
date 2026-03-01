@@ -32,6 +32,11 @@ func (s *Server) routes() {
 		s.mux.Handle("/api/dvr/ws", s.deps.DvrProxyHandler)
 	}
 
+	// Export remux (AVI → MP4)
+	if s.deps.ExportHandler != nil {
+		s.mux.Handle("POST /api/export/remux", s.deps.ExportHandler)
+	}
+
 	// go2rtc reverse proxy
 	s.mux.Handle("/go2rtc/", s.go2rtcProxy())
 

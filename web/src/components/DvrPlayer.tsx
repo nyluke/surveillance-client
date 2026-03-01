@@ -6,6 +6,8 @@ export interface DvrPlayerHandle {
   setSpeed: (speed: number) => void;
   seek: (timestampMs: number) => void;
   stop: () => void;
+  captureFrame: (filename?: string) => void;
+  getCanvas: () => HTMLCanvasElement | null;
 }
 
 interface DvrPlayerProps {
@@ -41,6 +43,26 @@ const DvrPlayer = forwardRef<DvrPlayerHandle, DvrPlayerProps>(function DvrPlayer
     setSpeed: (speed: number) => playerRef.current?.setSpeed(speed),
     seek: (timestampMs: number) => playerRef.current?.seek(timestampMs),
     stop: () => playerRef.current?.stop(),
+    captureFrame: (filename?: string) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename || `capture_${Date.now()}.jpg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        },
+        "image/jpeg",
+        0.95,
+      );
+    },
+    getCanvas: () => canvasRef.current,
   }));
 
   const startPlayback = useCallback(() => {

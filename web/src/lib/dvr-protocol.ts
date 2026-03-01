@@ -55,6 +55,8 @@ export interface PlaybackOpenParams {
   endTime: number; // Unix timestamp in seconds
   streamIndex?: number; // 0 = main, 1 = sub
   typeMask?: string[];
+  backup?: boolean; // true for recording backup (raw H.264 → AVI)
+  audio?: boolean; // true to include audio in backup
 }
 
 // Convert a 1-based channel number to DVR GUID format.
@@ -73,17 +75,20 @@ export interface DvrCommand {
 
 export function cmdPlaybackOpen(params: PlaybackOpenParams): DvrCommand {
   const taskId = getRandomGUID();
+  const data: Record<string, unknown> = {
+    task_id: taskId,
+    channel_id: params.channelId,
+    start_time: params.startTime,
+    end_time: params.endTime,
+    stream_index: params.streamIndex ?? 1,
+    type_mask: params.typeMask ?? REC_EVENT_TYPES,
+  };
+  if (params.backup) data.backup = true;
+  if (params.audio) data.audio = true;
   return {
     url: "/device/playback/open",
     basic: getBasic(),
-    data: {
-      task_id: taskId,
-      channel_id: params.channelId,
-      start_time: params.startTime,
-      end_time: params.endTime,
-      stream_index: params.streamIndex ?? 1,
-      type_mask: params.typeMask ?? REC_EVENT_TYPES,
-    },
+    data,
   };
 }
 

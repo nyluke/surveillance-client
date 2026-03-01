@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useCameraStore } from "../stores/cameraStore";
+import { DvrExporter } from "../lib/dvr-exporter";
+import { msToSeconds } from "../lib/dvr-protocol";
 import type { DvrPlayerHandle } from "./DvrPlayer";
 
 const DURATIONS = [
@@ -27,12 +29,22 @@ function formatTime(ts: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function formatTimeForFilename(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+}
+
 export default function PlaybackControls({
   cameraName,
+  cameraId,
+  channelId,
   playerRef,
   currentTime,
 }: {
   cameraName: string;
+  cameraId: string;
+  channelId: string;
   playerRef: React.RefObject<DvrPlayerHandle | null>;
   currentTime: number | null;
 }) {
@@ -51,13 +63,17 @@ export default function PlaybackControls({
   } = useCameraStore();
 
   const [loading, setLoading] = useState(false);
+  const [startMark, setStartMark] = useState<number | null>(null);
+  const [endMark, setEndMark] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<number | null>(null);
+  const exporterRef = useRef<DvrExporter | null>(null);
 
   const canPlay = playbackDate && playbackTime && !loading;
 
   const handlePlay = () => {
     setLoading(true);
     setPlaybackActive(true);
-    // Loading state will be cleared by onReady from DvrPlayer
   };
 
   const handleStop = () => {
@@ -77,7 +93,95 @@ export default function PlaybackControls({
     }
   };
 
-  // Clear loading when playback becomes active (DvrPlayer calls onReady)
+  const handleCapture = () => {
+    const ts = currentTime
+      ? formatTimeForFilename(currentTime)
+      : String(Date.now());
+    playerRef.current?.captureFrame(`${cameraName}_${ts}.jpg`);
+  };
+
+  const handleMarkIn = () => {
+    if (startMark !== null) {
+      setStartMark(null);
+    } else if (currentTime) {
+      setStartMark(currentTime);
+      if (endMark !== null && endMark <= currentTime) {
+        setEndMark(null);
+      }
+    }
+  };
+
+  const handleMarkOut = () => {
+    if (endMark !== null) {
+      setEndMark(null);
+    } else if (currentTime) {
+      setEndMark(currentTime);
+      if (startMark !== null && startMark >= currentTime) {
+        setStartMark(null);
+      }
+    }
+  };
+
+  const canExport = startMark !== null && endMark !== null && !exporting;
+
+  const handleExport = () => {
+    if (!canExport) return;
+
+    const exportStartMs = Math.min(startMark, endMark);
+    const exportEndMs = Math.max(startMark, endMark);
+
+    const exporter = new DvrExporter({
+      cameraId,
+      channelId,
+      startTime: msToSeconds(exportStartMs),
+      endTime: msToSeconds(exportEndMs),
+      onProgress: (frameTimeMs) => {
+        setExportProgress(frameTimeMs);
+      },
+      onComplete: (blob, filename) => {
+        // Trigger download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${cameraName}_${filename}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setExporting(false);
+        setExportProgress(null);
+        exporterRef.current = null;
+      },
+      onError: (msg) => {
+        console.error("[Export]", msg);
+        setExporting(false);
+        setExportProgress(null);
+        exporterRef.current = null;
+      },
+    });
+
+    exporter.start();
+    exporterRef.current = exporter;
+    setExporting(true);
+    setExportProgress(null);
+  };
+
+  const handleCancelExport = () => {
+    exporterRef.current?.cancel();
+    exporterRef.current = null;
+    setExporting(false);
+    setExportProgress(null);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      exporterRef.current?.cancel();
+      exporterRef.current = null;
+    };
+  }, []);
+
+  // Clear loading when playback becomes active
   if (playbackActive && loading) {
     setLoading(false);
   }
@@ -144,6 +248,73 @@ export default function PlaybackControls({
               </button>
             ))}
           </div>
+          <div className="w-px h-5 bg-gray-700" />
+          <button
+            onClick={handleCapture}
+            className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium transition-colors shrink-0"
+            title="Capture current frame as JPEG"
+          >
+            Capture
+          </button>
+          <div className="flex gap-0.5 bg-gray-800 rounded p-0.5">
+            <button
+              onClick={handleMarkIn}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                startMark !== null
+                  ? "bg-green-700 text-green-100"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+              }`}
+              title={
+                startMark !== null
+                  ? `In: ${formatTime(startMark)} (click to clear)`
+                  : "Mark clip start"
+              }
+            >
+              In{startMark !== null ? ` ${formatTime(startMark)}` : ""}
+            </button>
+            <button
+              onClick={handleMarkOut}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                endMark !== null
+                  ? "bg-green-700 text-green-100"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+              }`}
+              title={
+                endMark !== null
+                  ? `Out: ${formatTime(endMark)} (click to clear)`
+                  : "Mark clip end"
+              }
+            >
+              Out{endMark !== null ? ` ${formatTime(endMark)}` : ""}
+            </button>
+          </div>
+          {exporting ? (
+            <>
+              <span className="text-yellow-400 font-medium animate-pulse">
+                Exporting...
+              </span>
+              {exportProgress && (
+                <span className="text-gray-400 font-mono text-xs tabular-nums">
+                  {formatTime(exportProgress)}
+                </span>
+              )}
+              <button
+                onClick={handleCancelExport}
+                className="px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition-colors shrink-0"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleExport}
+              disabled={!canExport}
+              className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shrink-0"
+              title="Export clip between In and Out marks as AVI"
+            >
+              Export
+            </button>
+          )}
           <button
             onClick={handleStop}
             className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition-colors shrink-0"

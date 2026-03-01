@@ -35,7 +35,7 @@ export class WebGLRenderer {
   private vTex: WebGLTexture;
 
   constructor(canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext("webgl", { preserveDrawingBuffer: false });
+    const gl = canvas.getContext("webgl", { preserveDrawingBuffer: true });
     if (!gl) throw new Error("WebGL not supported");
     this.gl = gl;
 

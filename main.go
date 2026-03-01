@@ -10,6 +10,7 @@ import (
 	"surveillance-client/internal/db"
 	"surveillance-client/internal/discovery"
 	"surveillance-client/internal/dvr"
+	"surveillance-client/internal/export"
 	"surveillance-client/internal/go2rtc"
 	"surveillance-client/internal/server"
 )
@@ -38,12 +39,14 @@ func main() {
 	groupHandler := camera.NewGroupHandler(cameraStore)
 	discoveryHandler := discovery.NewHandler(cfg, cameraStore, go2rtcMgr)
 	dvrProxyHandler := dvr.NewProxyHandler(cfg, cameraStore)
+	exportHandler := export.NewHandler()
 
 	deps := &server.Dependencies{
-		CameraHandler:   cameraHandler,
-		GroupHandler:    groupHandler,
+		CameraHandler:    cameraHandler,
+		GroupHandler:     groupHandler,
 		DiscoveryHandler: discoveryHandler,
-		DvrProxyHandler: dvrProxyHandler,
+		DvrProxyHandler:  dvrProxyHandler,
+		ExportHandler:    exportHandler,
 	}
 
 	srv := server.New(cfg, webAssets, deps)

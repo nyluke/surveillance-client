@@ -24,6 +24,7 @@ type Dependencies struct {
 	GroupHandler    http.Handler
 	DiscoveryHandler http.Handler
 	DvrProxyHandler http.Handler
+	ExportHandler   http.Handler
 }
 
 func New(cfg *config.Config, webAssets embed.FS, deps *Dependencies) *Server {

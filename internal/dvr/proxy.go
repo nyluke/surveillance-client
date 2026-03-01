@@ -70,6 +70,9 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Connect to DVR WebSocket
 	dvrURL := fmt.Sprintf("ws://%s/requestWebsocketConnection?sessionID=%s", host, url.QueryEscape(session.ID))
 	dvrConn, err := dialDVR(dvrURL, session)
+	if err == nil {
+		dvrConn.SetReadLimit(0) // No message size limit for binary video data
+	}
 	if err != nil {
 		// Session might be stale — invalidate and retry once
 		h.authenticator.Invalidate(host, username)
@@ -84,6 +87,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("DVR WebSocket connect failed: %v", err), http.StatusBadGateway)
 			return
 		}
+		dvrConn.SetReadLimit(0)
 	}
 
 	// Upgrade browser connection
@@ -94,6 +98,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clientConn.SetReadLimit(0)
 	log.Printf("DVR WebSocket proxy established for camera %s (host: %s)", cameraID, host)
 
 	// Bidirectional relay

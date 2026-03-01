@@ -144,6 +144,8 @@ export default function LiveView() {
         {isPlayback && activeCam ? (
           <PlaybackControls
             cameraName={activeCam.name}
+            cameraId={activeCam.id}
+            channelId={channelId}
             playerRef={dvrPlayerRef}
             currentTime={currentTime}
           />
