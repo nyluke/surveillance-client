@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"embed"
 	"io/fs"
 	"log"
@@ -45,7 +47,21 @@ func New(cfg *config.Config, webAssets embed.FS, deps *Dependencies) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.AuthPassword != "" {
+		_, pass, ok := r.BasicAuth()
+		if !ok || !checkPassword(pass, s.cfg.AuthPassword) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="surveillance"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
 	s.mux.ServeHTTP(w, r)
+}
+
+func checkPassword(given, expected string) bool {
+	a := sha256.Sum256([]byte(given))
+	b := sha256.Sum256([]byte(expected))
+	return subtle.ConstantTimeCompare(a[:], b[:]) == 1
 }
 
 func (s *Server) go2rtcProxy() http.Handler {

@@ -5,13 +5,14 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DBPath      string
-	Go2RTCPath  string
-	Go2RTCAPI   string
-	DVRHost     string
-	DVRUsername string
-	DVRPassword string
+	Port         string
+	DBPath       string
+	Go2RTCPath   string
+	Go2RTCAPI    string
+	DVRHost      string
+	DVRUsername  string
+	DVRPassword  string
+	AuthPassword string
 }
 
 func Load() *Config {
@@ -22,7 +23,8 @@ func Load() *Config {
 		Go2RTCAPI:  getEnv("GO2RTC_API", "http://localhost:1984"),
 		DVRHost:     getEnv("DVR_HOST", ""),
 		DVRUsername: getEnv("DVR_USERNAME", "admin"),
-		DVRPassword: getEnv("DVR_PASSWORD", ""),
+		DVRPassword:  getEnv("DVR_PASSWORD", ""),
+		AuthPassword: getEnv("AUTH_PASSWORD", ""),
 	}
 }
 
