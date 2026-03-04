@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build run clean download-go2rtc
+.PHONY: dev dev-backend dev-frontend build run clean download-go2rtc deploy
 
 # Build the frontend then compile Go binary with embedded assets
 build: web/dist
@@ -52,6 +52,10 @@ download-go2rtc:
 		curl -L -o go2rtc "$$URL" && chmod +x go2rtc; \
 	fi
 	@echo "go2rtc downloaded successfully"
+
+# Deploy to Raspberry Pi
+deploy:
+	./deploy.sh
 
 clean:
 	rm -f surveillance-client

@@ -2,7 +2,7 @@
 surveillance-client
 *.exe
 bin/
-go2rtc
+/go2rtc
 go2rtc.yaml
 data/
 

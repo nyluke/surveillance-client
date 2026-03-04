@@ -49,6 +49,7 @@ const VideoPlayer = forwardRef<
     const el = elRef.current;
     if (!el) return;
     (el as any).mode = "mse";
+    (el as any).media = "video";
     (el as any).background = true;
     (el as any).visibilityThreshold = 0;
     (el as any).src = src;
