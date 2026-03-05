@@ -5,7 +5,6 @@ import { WebGLRenderer } from "./webgl-renderer";
 import {
   cmdPlaybackOpen,
   cmdPlaybackClose,
-  cmdPlaybackSeek,
   cmdKeyFrame,
   cmdAllFrame,
   cmdRefreshFrameIndex,
@@ -56,6 +55,8 @@ export class DvrPlayer {
   private maxVideoQueueLength = 8;
   private isDecoding = false;
   private isFirstDecode = false;
+  private decoderReady = false;
+  private pendingData: ArrayBuffer[] = [];
 
   private basicRealTime = 0;
   private basicFrameTime = 0;
@@ -63,6 +64,8 @@ export class DvrPlayer {
   private displayLoopId: number | null = null;
   private isEndPlay = false;
   private notDecodeNumber = 0;
+  private playbackChannelId = "";
+  private playbackEndTime = 0;
 
   constructor(options: DvrPlayerOptions) {
     this.canvas = options.canvas;
@@ -77,6 +80,8 @@ export class DvrPlayer {
     this.isEndPlay = false;
     this.notDecodeNumber = 0;
     this.isFirstDecode = false;
+    this.playbackChannelId = params.channelId;
+    this.playbackEndTime = params.endTime;
 
     // Init renderer
     if (!this.renderer) {
@@ -121,21 +126,31 @@ export class DvrPlayer {
   }
 
   seek(timestampMs: number): void {
+    console.log(`[DvrPlayer] seek called: ts=${timestampMs}, taskId=${!!this.taskId}, wsOpen=${this.ws?.readyState === WebSocket.OPEN}`);
     if (!this.taskId || !this.ws || this.ws.readyState !== WebSocket.OPEN)
       return;
 
+    // Stop current playback and open a new one at the target position.
+    // The DVR doesn't reliably support the seek command, so we close
+    // the current task and open a fresh playback from the new position.
+    this.ws.send(JSON.stringify(cmdPlaybackClose(this.taskId)));
+
     this.stopDecode();
     this.clearFrameList();
-    this.renderer?.clear();
+    this.resetBasicTime();
 
-    const cmd = cmdPlaybackSeek(
-      this.taskId,
-      msToSeconds(timestampMs),
-    );
+    const startSec = msToSeconds(timestampMs);
+    const endSec = this.playbackEndTime;
+    const cmd = cmdPlaybackOpen({
+      channelId: this.playbackChannelId,
+      startTime: startSec,
+      endTime: endSec,
+    });
+    this.taskId = cmd.data.task_id as string;
+    console.log(`[DvrPlayer] seek: reopening playback at ${startSec}`);
     this.ws.send(JSON.stringify(cmd));
 
     this.isFirstDecode = false;
-    this.resetBasicTime();
 
     // Re-apply speed mode after seek
     if (this.playSpeed > 2) {
@@ -146,9 +161,6 @@ export class DvrPlayer {
       this.ws.send(JSON.stringify(kfCmd));
       this.isKeyFramePlay = true;
     }
-
-    this.startDecode();
-    this.startDisplayLoop();
   }
 
   setSpeed(speed: number): void {
@@ -158,25 +170,24 @@ export class DvrPlayer {
     }
 
     const frameTimeSec = msToSeconds(this.frameTimestamp || Date.now());
+    const needsModeSwitch =
+      (speed > 2 && (this.playSpeed <= 2 || !this.isKeyFramePlay)) ||
+      (speed <= 2 && (this.playSpeed > 2 || this.isKeyFramePlay));
 
-    if (speed > 2) {
-      if (this.playSpeed <= 2 || !this.isKeyFramePlay) {
-        this.stopDecode();
-        this.clearFrameList();
-        this.renderer?.clear();
+    if (needsModeSwitch) {
+      this.stopDecode();
+      this.clearFrameList();
+
+      if (speed > 2) {
         this.isKeyFramePlay = true;
         this.ws.send(JSON.stringify(cmdKeyFrame(this.taskId, frameTimeSec)));
-        this.startDecode();
-      }
-    } else {
-      if (this.playSpeed > 2 || this.isKeyFramePlay) {
-        this.stopDecode();
-        this.clearFrameList();
-        this.renderer?.clear();
+      } else {
         this.isKeyFramePlay = false;
         this.ws.send(JSON.stringify(cmdAllFrame(this.taskId, frameTimeSec)));
-        this.startDecode();
       }
+
+      // Reset so handleBinaryMessage restarts decode + display loop
+      this.isFirstDecode = false;
     }
 
     this.playSpeed = speed;
@@ -231,7 +242,14 @@ export class DvrPlayer {
     if (!this.decodeWorker) return;
     this.binaryCount++;
     if (this.binaryCount <= 3 || this.binaryCount % 100 === 0) {
-      console.log(`[DvrPlayer] binary message #${this.binaryCount}, size=${data.byteLength}`);
+      console.log(`[DvrPlayer] binary message #${this.binaryCount}, size=${data.byteLength}, decoderReady=${this.decoderReady}`);
+    }
+
+    // Buffer data until decoder is initialized — feeding data before init
+    // loses the H.264 SPS/PPS parameter sets, making all frames undecodable
+    if (!this.decoderReady) {
+      this.pendingData.push(data);
+      return;
     }
 
     // Feed binary data to decoder
@@ -255,6 +273,8 @@ export class DvrPlayer {
       this.decodeWorker.terminate();
     }
 
+    this.decoderReady = false;
+    this.pendingData = [];
     this.decodeWorker = new Worker("/dvr-decoder/decoder.js");
 
     this.decodeWorker.onmessage = (ev) => {
@@ -267,6 +287,20 @@ export class DvrPlayer {
         case "ready":
           console.log("[DvrPlayer] decoder ready, sending init");
           this.decodeWorker!.postMessage({ cmd: "init", type: 0 });
+          this.decoderReady = true;
+          // Flush any binary data that arrived before decoder was ready
+          if (this.pendingData.length > 0) {
+            console.log(`[DvrPlayer] flushing ${this.pendingData.length} buffered messages`);
+            for (const buf of this.pendingData) {
+              this.decodeWorker!.postMessage({ cmd: "sendData", buffer: buf });
+            }
+            this.pendingData = [];
+            if (!this.isFirstDecode) {
+              this.startDecode();
+              this.isFirstDecode = true;
+              this.startDisplayLoop();
+            }
+          }
           break;
 
         case "getVideoFrame":
@@ -308,20 +342,34 @@ export class DvrPlayer {
     }
   }
 
+  private displayLoopCount = 0;
   private displayLoop = (): void => {
     if (this.playState !== "PLAYING") return;
     this.displayLoopId = requestAnimationFrame(this.displayLoop);
+    this.displayLoopCount++;
 
     if (this.videoQueue.length === 0) return;
 
+    if (this.displayLoopCount % 60 === 0) {
+      console.log(`[DvrPlayer] displayLoop: queueLen=${this.videoQueue.length}, isDecoding=${this.isDecoding}, basicFrameTime=${this.basicFrameTime}`);
+    }
+
     // Try to display up to 2 frames per loop iteration
+    let displayed = 0;
     for (let i = 0; i < 2; i++) {
       if (this.videoQueue.length === 0) break;
       if (this.displayNextFrame()) {
         this.videoQueue.shift();
+        displayed++;
       } else {
         break;
       }
+    }
+
+    if (this.displayLoopCount % 60 === 0 && displayed === 0 && this.videoQueue.length > 0) {
+      const frame = this.videoQueue[0];
+      const now = Date.now();
+      console.log(`[DvrPlayer] STUCK: frameTime=${frame.realTimestamp}, now=${now}, basicReal=${this.basicRealTime}, basicFrame=${this.basicFrameTime}, speed=${this.playSpeed}`);
     }
 
     // Resume decoding if queue is draining
@@ -351,8 +399,17 @@ export class DvrPlayer {
       this.basicFrameTime = frameTime;
     }
 
+    // If frame time jumped far ahead of real time (e.g., after seek),
+    // reset baseline so we don't wait for real time to catch up
+    if (frameElapsed > 0 && frameElapsed - realElapsed * this.playSpeed > 2000) {
+      this.basicRealTime = now;
+      this.basicFrameTime = frameTime;
+    }
+
     // Speed-aware timing: don't display frame until enough real time has passed
-    if (realElapsed * this.playSpeed < frameElapsed) {
+    const realElapsed2 = now - this.basicRealTime;
+    const frameElapsed2 = frameTime - this.basicFrameTime;
+    if (realElapsed2 * this.playSpeed < frameElapsed2) {
       this.onTime?.(frame.realTimestamp);
       return false;
     }
@@ -389,6 +446,7 @@ export class DvrPlayer {
   }
 
   private startDecode(): void {
+    if (!this.decoderReady) return;
     this.isDecoding = true;
     this.decodeWorker?.postMessage({ cmd: "decodeFrame" });
   }

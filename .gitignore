@@ -25,6 +25,12 @@ Thumbs.db
 # DVR reference JS (reverse-engineering artifacts)
 dvr-js/
 
+# Python
+__pycache__/
+*.pyc
+venv/
+*.egg-info/
+
 # Env
 .env
 .env.local
