@@ -11,6 +11,7 @@ import (
 	"surveillance-client/internal/discovery"
 	"surveillance-client/internal/dvr"
 	"surveillance-client/internal/export"
+	"surveillance-client/internal/face"
 	"surveillance-client/internal/go2rtc"
 	"surveillance-client/internal/server"
 )
@@ -41,12 +42,20 @@ func main() {
 	dvrProxyHandler := dvr.NewProxyHandler(cfg, cameraStore)
 	exportHandler := export.NewHandler()
 
+	// Face recognition
+	faceStore := face.NewStore(database)
+	faceAlerter := face.NewAlerter(cfg.SlackWebhookURL, faceStore)
+	faceSnapshot := face.NewSnapshotFetcher(cfg.Go2RTCAPI)
+	faceCameras := &cameraStoreAdapter{store: cameraStore}
+	faceHandler := face.NewHandler(faceStore, faceAlerter, faceSnapshot, faceCameras, cfg.FaceServiceURL, cfg.FaceDataDir)
+
 	deps := &server.Dependencies{
 		CameraHandler:    cameraHandler,
 		GroupHandler:     groupHandler,
 		DiscoveryHandler: discoveryHandler,
 		DvrProxyHandler:  dvrProxyHandler,
 		ExportHandler:    exportHandler,
+		FaceHandler:      faceHandler,
 	}
 
 	srv := server.New(cfg, webAssets, deps)
@@ -64,4 +73,23 @@ func main() {
 	if err := http.ListenAndServe(":"+cfg.Port, srv); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// cameraStoreAdapter adapts camera.Store to face.CameraLister
+type cameraStoreAdapter struct {
+	store *camera.Store
+}
+
+func (a *cameraStoreAdapter) GetCamera(id string) (face.CameraInfo, bool) {
+	cam, err := a.store.GetCamera(id)
+	if err != nil || cam == nil {
+		return face.CameraInfo{}, false
+	}
+	return face.CameraInfo{
+		RTSPMain: cam.RTSPMain,
+		RTSPSub:  cam.RTSPSub,
+		Username: cam.Username,
+		Password: cam.Password,
+		Name:     cam.Name,
+	}, true
 }

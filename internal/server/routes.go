@@ -37,6 +37,12 @@ func (s *Server) routes() {
 		s.mux.Handle("POST /api/export/remux", s.deps.ExportHandler)
 	}
 
+	// Face recognition routes
+	if s.deps.FaceHandler != nil {
+		s.mux.Handle("/api/faces/", s.deps.FaceHandler)
+		s.mux.Handle("/api/faces", s.deps.FaceHandler)
+	}
+
 	// go2rtc reverse proxy
 	s.mux.Handle("/go2rtc/", s.go2rtcProxy())
 

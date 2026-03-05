@@ -1,7 +1,6 @@
 import { type ReactNode } from "react";
 import { useCameraStore } from "../stores/cameraStore";
-
-type Page = "live" | "settings";
+import type { Page } from "../App";
 
 export default function Layout({
   children,
@@ -71,26 +70,25 @@ export default function Layout({
           )}
         </div>
         <nav className="flex gap-1">
-          <button
-            onClick={() => onNavigate("live")}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-              currentPage === "live"
-                ? "bg-blue-600 text-white"
-                : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
-            }`}
-          >
-            Live View
-          </button>
-          <button
-            onClick={() => onNavigate("settings")}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-              currentPage === "settings"
-                ? "bg-blue-600 text-white"
-                : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
-            }`}
-          >
-            Settings
-          </button>
+          {(
+            [
+              { key: "live" as Page, label: "Live View" },
+              { key: "faces" as Page, label: "Faces" },
+              { key: "settings" as Page, label: "Settings" },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.key}
+              onClick={() => onNavigate(item.key)}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                currentPage === item.key
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
       </header>
       <main className="flex-1">{children}</main>

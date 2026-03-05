@@ -60,3 +60,48 @@ export interface AddDiscoveredRequest {
   password?: string;
 }
 
+// Face recognition types
+
+export interface FaceSubject {
+  id: string;
+  name: string;
+  notes?: string;
+  alert_enabled: boolean;
+  created_at: string;
+  crop_url?: string;
+}
+
+export interface FaceSighting {
+  id: string;
+  subject_id: string;
+  camera_id: string;
+  confidence: number;
+  crop_path?: string;
+  seen_at: string;
+  subject_name: string;
+  camera_name: string;
+  crop_url?: string;
+}
+
+export interface FaceCluster {
+  id: string;
+  label?: string;
+  first_seen: string;
+  last_seen: string;
+  visit_count: number;
+  representative_crop?: string;
+}
+
+export interface FaceMonitorConfig {
+  camera_id: string;
+  monitor_type: "realtime" | "batch" | "both";
+  interval_seconds: number;
+}
+
+export interface FaceServiceStatus {
+  face_service_configured: boolean;
+  face_service_online?: boolean;
+  face_service_error?: string;
+  slack_configured: boolean;
+}
+

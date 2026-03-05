@@ -5,14 +5,17 @@ import (
 )
 
 type Config struct {
-	Port         string
-	DBPath       string
-	Go2RTCPath   string
-	Go2RTCAPI    string
-	DVRHost      string
-	DVRUsername  string
-	DVRPassword  string
-	AuthPassword string
+	Port           string
+	DBPath         string
+	Go2RTCPath     string
+	Go2RTCAPI      string
+	DVRHost        string
+	DVRUsername    string
+	DVRPassword    string
+	AuthPassword   string
+	FaceServiceURL string
+	SlackWebhookURL string
+	FaceDataDir    string
 }
 
 func Load() *Config {
@@ -24,7 +27,10 @@ func Load() *Config {
 		DVRHost:     getEnv("DVR_HOST", ""),
 		DVRUsername: getEnv("DVR_USERNAME", "admin"),
 		DVRPassword:  getEnv("DVR_PASSWORD", ""),
-		AuthPassword: getEnv("AUTH_PASSWORD", ""),
+		AuthPassword:    getEnv("AUTH_PASSWORD", ""),
+		FaceServiceURL:  getEnv("FACE_SERVICE_URL", ""),
+		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
+		FaceDataDir:     getEnv("FACE_DATA_DIR", "data/faces"),
 	}
 }
 

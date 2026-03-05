@@ -6,6 +6,11 @@ import type {
   DiscoverRequest,
   DiscoveredCamera,
   AddDiscoveredRequest,
+  FaceSubject,
+  FaceSighting,
+  FaceCluster,
+  FaceMonitorConfig,
+  FaceServiceStatus,
 } from "./types";
 
 const BASE = "/api";
@@ -61,4 +66,40 @@ export const addDiscoveredCameras = (data: AddDiscoveredRequest) =>
     method: "POST",
     body: JSON.stringify(data),
   });
+
+// Faces
+export const listFaceSubjects = () => request<FaceSubject[]>("/faces/subjects");
+export const createFaceSubject = (formData: FormData) =>
+  fetch(BASE + "/faces/subjects", { method: "POST", body: formData }).then(
+    async (res) => {
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(body.error || res.statusText);
+      }
+      return res.json() as Promise<FaceSubject>;
+    },
+  );
+export const deleteFaceSubject = (id: string) =>
+  request<{ status: string }>(`/faces/subjects/${id}`, { method: "DELETE" });
+export const listFaceSightings = (limit = 100) =>
+  request<FaceSighting[]>(`/faces/sightings?limit=${limit}`);
+export const listFaceClusters = () => request<FaceCluster[]>("/faces/visitors");
+export const labelFaceCluster = (id: string, label: string) =>
+  request<{ status: string }>(`/faces/visitors/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ label }),
+  });
+export const triggerFaceClustering = () =>
+  request<{ status: string; clusters: number }>("/faces/visitors/cluster", {
+    method: "POST",
+  });
+export const getFaceConfig = () =>
+  request<FaceMonitorConfig[]>("/faces/config");
+export const setFaceConfig = (configs: FaceMonitorConfig[]) =>
+  request<{ status: string }>("/faces/config", {
+    method: "PUT",
+    body: JSON.stringify({ configs }),
+  });
+export const getFaceServiceStatus = () =>
+  request<FaceServiceStatus>("/faces/status");
 

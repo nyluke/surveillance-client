@@ -22,11 +22,12 @@ type Server struct {
 }
 
 type Dependencies struct {
-	CameraHandler   http.Handler
-	GroupHandler    http.Handler
+	CameraHandler    http.Handler
+	GroupHandler     http.Handler
 	DiscoveryHandler http.Handler
-	DvrProxyHandler http.Handler
-	ExportHandler   http.Handler
+	DvrProxyHandler  http.Handler
+	ExportHandler    http.Handler
+	FaceHandler      http.Handler
 }
 
 func New(cfg *config.Config, webAssets embed.FS, deps *Dependencies) *Server {
